@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Custom PC Build – Receipt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #000000;
+      --card: #0a0a0a;
+      --text: #e6e6e6;
+      --muted: #9aa0a6;
+      --line: rgba(255,255,255,0.06);
+      --accent1: #00f0ff;
+      --accent2: #a855f7;
+      --success: #22c55e;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      letter-spacing:0.2px;
+    }
+    .wrap{max-width:880px; margin:32px auto; padding:24px;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:0 0 0 1px rgba(255,255,255,0.02), 0 30px 60px rgba(0,0,0,0.6);}
+    .header{padding:28px 28px 20px; background: radial-gradient(1200px 280px at 10% -10%, rgba(168,85,247,0.25), transparent), radial-gradient(900px 280px at 90% -20%, rgba(0,240,255,0.25), transparent);}
+    .brand{display:flex; align-items:center; gap:14px;}
+    .logo{width:40px; height:40px; border-radius:12px; background:conic-gradient(from 200deg, var(--accent1), var(--accent2));}
+    h1{font-size:22px; margin:0}
+    .muted{color:var(--muted)}
+    .meta{display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; margin-top:16px;}
+    .kvs{display:flex; justify-content:space-between; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background-color:rgba(255,255,255,0.01)}
+    .kvs span:first-child{color:var(--muted)}
+    .content{padding:8px 28px 28px}
+    .table{width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; border-radius:16px; border:1px solid var(--line); background-color:rgba(255,255,255,0.01);}
+    .table thead th{text-align:left; font-weight:600; font-size:13px; padding:14px 16px; border-bottom:1px solid var(--line); color:#cbd5e1; background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);}
+    .table tbody td{padding:14px 16px; border-bottom:1px solid var(--line);}
+    .table tbody tr:last-child td{border-bottom:none}
+    .mono{font-family:"JetBrains Mono", monospace}
+    .price{text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    .total{display:flex; justify-content:flex-end; gap:16px; align-items:center; margin-top:18px; padding:18px 16px; border:1px dashed var(--line); border-radius:14px; background:linear-gradient(90deg, rgba(0,240,255,0.08), rgba(168,85,247,0.08));}
+    .total .label{color:#cbd5e1}
+    .total .amount{font-size:24px; font-weight:800;}
+    .fineprint{margin-top:18px; font-size:12px; color:#a3a3a3}
+    .actions{display:flex; gap:10px; margin-top:22px; justify-content:flex-end;}
+    .btn{border:none; cursor:pointer; border-radius:14px; padding:12px 16px; font-weight:600; color:var(--text); background:linear-gradient(90deg, var(--accent1), var(--accent2));}
+    .btn.secondary{background:#0f172a; border:1px solid var(--line)}
+    @media (max-width: 640px){.meta{grid-template-columns:1fr}.wrap{padding:16px}}
+    @media print{
+      body{background:#000;color:#fff}
+      .card{background:#0a0a0a; box-shadow:none; border-color:#333}
+      .header{background: radial-gradient(1200px 280px at 10% -10%, rgba(168,85,247,0.25), transparent), radial-gradient(900px 280px at 90% -20%, rgba(0,240,255,0.25), transparent)}
+      .kvs,.table,.total{border-color:#333}
+      .btn{display:none}
+      a{color:#00f0ff}
+      .table thead th{background:rgba(255,255,255,0.02)}
+      .total{background:linear-gradient(90deg, rgba(0,240,255,0.08), rgba(168,85,247,0.08))}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <div class="brand">
+          <img src="Add a subheading.png" alt="Glorious Trade Hub" class="logo" width="50" height="50">
+          <div>
+            <h1>Glorious Trade Hub - Receipt</h1>
+            <div class="muted">Thank you for your purchase!</div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="kvs"><span>Customer</span><span class="mono">Your Name</span></div>
+          <div class="kvs"><span>Date</span><span class="mono" id="current-date">17 Aug 2025</span></div>
+        </div>
+      </div>
+
+      <div class="content">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:28%">Item</th>
+              <th>Description</th>
+              <th class="price" style="width:18%">Price (रु)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>CPU</strong></td>
+              <td>AMD Ryzen 5 5600G — 6 Cores (12 Threads), up to 4.4 GHz, Vega 11 Graphics</td>
+              <td class="price mono">18,999</td>
+            </tr>
+            <tr>
+              <td><strong>Motherboard</strong></td>
+              <td>ASRock B450M-HDV (Micro‑ATX, AM4 Socket, Ryzen Series Compatible)</td>
+              <td class="price mono">11,000</td>
+            </tr>
+            <tr>
+              <td><strong>RAM</strong></td>
+              <td>16 GB DDR4 3200 MHz (2x8GB Dual Channel)</td>
+              <td class="price mono">4,800</td>
+            </tr>
+            <tr>
+              <td><strong>CPU Fan</strong></td>
+              <td>High Performance Air Cooler</td>
+              <td class="price mono">1,500</td>
+            </tr>
+            <tr>
+              <td><strong>Thermal Paste</strong></td>
+              <td>High Conductivity Thermal Compound</td>
+              <td class="price mono">700</td>
+            </tr>
+            <tr>
+              <td><strong>Storage</strong></td>
+              <td>NVMe SSD 256GB (PCIe Gen3, High Speed Storage)</td>
+              <td class="price mono">2,700</td>
+            </tr>
+            <tr>
+              <td><strong>Case</strong></td>
+              <td>Ant Esports Gaming Case (ATX Mid Tower, RGB Ready)</td>
+              <td class="price mono">4,500</td>
+            </tr>
+            <tr>
+              <td><strong>Graphics</strong></td>
+              <td>Radeon Vega 11 Integrated Graphics (8GB Shared Memory)</td>
+              <td class="price mono">Included</td>
+            </tr>
+            <tr>
+              <td><strong>Power Supply</strong></td>
+              <td>750W PSU (80+ Bronze, Semi-Modular)</td>
+              <td class="price mono">3,500</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="total">
+          <div class="label">Grand Total</div>
+          <div class="amount mono">रु 47,699</div>
+        </div>
+
+        <p class="fineprint">Notice: All prices listed are <strong>cost price</strong>, not selling price. (Currency is Nepali Rupees).</p>
+
+        <div class="actions">
+          <button class="btn secondary" onclick="editName()">Edit Name</button>
+          <button class="btn" onclick="window.print()">Print / Save PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function editName(){
+      const current = document.querySelector('.meta .kvs .mono').textContent.trim();
+      const name = prompt('Enter customer name:', current === 'Your Name' ? '' : current);
+      if(name !== null){
+        document.querySelectorAll('.meta .kvs .mono')[0].textContent = name || 'Your Name';
+      }
+    }
+
+    function updateDate() {
+      const now = new Date();
+      const dateOptions = { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      };
+      document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', dateOptions);
+    }
+
+    // Update date immediately
+    updateDate();
+  </script>
+</body>
+</html> 
