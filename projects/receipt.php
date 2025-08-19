@@ -22,13 +22,63 @@ $defaultProducts = [
   ['item' => 'Power Supply', 'description' => '750W PSU (80+ Bronze, Semi-Modular)', 'price' => 3500],
 ];
 
+$shopFile = __DIR__ . '/shop.json';
+$productsFile = __DIR__ . '/products.json';
+
+// Load shop config
+$shopConfig = [
+  'shopName' => 'Glorious Trade Hub',
+  'vatNo' => '',
+  'hidePrices' => false,
+  'dateISO' => ''
+];
+if (file_exists($shopFile)) {
+  $raw = file_get_contents($shopFile);
+  $decoded = json_decode($raw, true);
+  if (is_array($decoded)) {
+    $shopConfig = array_merge($shopConfig, $decoded);
+  }
+}
+
+$shopName = (string)$shopConfig['shopName'];
+$vatNo = (string)$shopConfig['vatNo'];
+$hidePricesPref = (bool)$shopConfig['hidePrices'];
+$dateISO = (string)$shopConfig['dateISO'];
+
+$isSettingsSave = isset($_POST['action']) && $_POST['action'] === 'save_settings';
+if ($isSettingsSave) {
+  $shopName = isset($_POST['shop_name']) ? trim((string)$_POST['shop_name']) : $shopName;
+  $vatNo = isset($_POST['vat_no']) ? trim((string)$_POST['vat_no']) : $vatNo;
+  $hidePricesPref = isset($_POST['hide_prices']) && $_POST['hide_prices'] === 'on';
+  $dateISO = isset($_POST['date_iso']) ? trim((string)$_POST['date_iso']) : $dateISO;
+  $shopConfig = [
+    'shopName' => $shopName,
+    'vatNo' => $vatNo,
+    'hidePrices' => $hidePricesPref,
+    'dateISO' => $dateISO,
+  ];
+  @file_put_contents($shopFile, json_encode($shopConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+  header('Content-Type: application/json');
+  echo json_encode(['ok' => true, 'shop' => $shopConfig]);
+  exit;
+}
+
 $customerName = 'Your Name';
 if (isset($_POST['customer_name']) && $_POST['customer_name'] !== '') {
   $customerName = trim((string)$_POST['customer_name']);
 }
 
-// Start with defaults; if POSTed products exist, hydrate from POST
+// If products file exists, load that, else defaults
 $products = $defaultProducts;
+if (file_exists($productsFile)) {
+  $rawP = file_get_contents($productsFile);
+  $decodedP = json_decode($rawP, true);
+  if (is_array($decodedP)) {
+    $products = $decodedP;
+  }
+}
+
+// Start with current products; if POSTed products exist, hydrate from POST, and save
 if (isset($_POST['products']) && is_array($_POST['products'])) {
   $products = [];
   foreach ($_POST['products'] as $row) {
@@ -43,6 +93,7 @@ if (isset($_POST['products']) && is_array($_POST['products'])) {
   if (count($products) === 0) {
     $products = [];
   }
+  @file_put_contents($productsFile, json_encode($products, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
 // Allow quick blank slate
@@ -61,8 +112,14 @@ foreach ($products as $p) {
   $grandTotal += (float)preg_replace('/[^\d.]/', '', $price);
 }
 
-// Date string like "17 Aug 2025"
+// Date string like "17 Aug 2025". If a date is set in settings, use it.
 $dateStr = date('d M Y');
+if ($dateISO !== '') {
+  $ts = strtotime($dateISO);
+  if ($ts !== false) {
+    $dateStr = date('d M Y', $ts);
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -122,11 +179,23 @@ $dateStr = date('d M Y');
     .row-remove{position:absolute; right:8px; top:50%; transform:translateY(-50%); background:#111827; color:#e5e7eb; border:1px solid var(--line); border-radius:10px; padding:4px 8px; cursor:pointer; font-size:12px}
     .row-remove:hover{background:#0f172a}
     .cell-input{width:100%; background:transparent; border:none; color:inherit; font:inherit; outline:none}
+    /* Remove default field backgrounds, including autofill */
+    input.cell-input:-webkit-autofill,
+    input.cell-input:-webkit-autofill:hover,
+    input.cell-input:-webkit-autofill:focus,
+    input.cell-input:-webkit-autofill:active{
+      -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+      -webkit-text-fill-color: var(--text) !important;
+      transition: background-color 9999s ease-in-out 0s;
+    }
+    input.cell-input{background-color: transparent}
     .cell-input::placeholder{color:#6b7280}
     .cell-input.price{text-align:right}
     /* Hide per-item prices when toggled */
     .hide-prices .table thead th.price,
     .hide-prices .table tbody td.price{display:none}
+    /* Keep remove button visible even when price column hidden */
+    .hide-prices .table tbody td .row-remove{display:inline-block}
     @media (max-width: 640px){.meta{grid-template-columns:1fr}.wrap{padding:16px}}
     @media print{
       body{background:#000;color:#fff}
@@ -143,19 +212,19 @@ $dateStr = date('d M Y');
 </head>
 <body>
   <div class="wrap">
-    <div class="card" id="card-root">
+    <div class="card<?= $hidePricesPref ? ' hide-prices' : '' ?>" id="card-root">
       <form method="post" id="receipt-form">
         <div class="header">
           <div class="brand">
             <img src="Add a subheading.png" alt="Glorious Trade Hub" class="logo" width="50" height="50">
             <div>
-              <h1>Glorious Trade Hub - Receipt</h1>
-              <div class="muted">Thank you for your purchase!</div>
+              <h1><span id="shop-title"><?= htmlspecialchars($shopName) ?></span> - Receipt</h1>
+              <div class="muted">Thank you for your purchase! <span id="vat-span"><?= $vatNo !== '' ? 'VAT No: <span class=\'mono\'>' . htmlspecialchars($vatNo) . '</span>' : '' ?></span></div>
             </div>
           </div>
           <div class="meta">
             <div class="kvs"><span>Customer</span><span class="mono" id="customer-name-display"><?= htmlspecialchars($customerName) ?></span></div>
-            <div class="kvs"><span>Date</span><span class="mono" id="current-date"><?= htmlspecialchars($dateStr) ?></span></div>
+            <div class="kvs"><span>Date</span><span class="mono" id="current-date" data-fixed-date="<?= $dateISO !== '' ? '1' : '0' ?>"><?= htmlspecialchars($dateStr) ?></span></div>
           </div>
           <input type="hidden" name="customer_name" id="customer-name-input" value="<?= htmlspecialchars($customerName) ?>">
         </div>
@@ -174,13 +243,13 @@ $dateStr = date('d M Y');
                 <tr>
                   <td>
                     <strong><input class="cell-input" name="products[0][item]" placeholder="Item" value=""></strong>
+                    <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
                   </td>
                   <td>
                     <input class="cell-input" name="products[0][description]" placeholder="Description" value="">
                   </td>
                   <td class="price mono">
                     <input class="cell-input price" name="products[0][price]" placeholder="0" value="">
-                    <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
                   </td>
                 </tr>
               <?php else: ?>
@@ -188,13 +257,13 @@ $dateStr = date('d M Y');
                   <tr>
                     <td>
                       <strong><input class="cell-input" name="products[<?= $i ?>][item]" value="<?= htmlspecialchars((string)$p['item']) ?>"></strong>
+                      <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
                     </td>
                     <td>
                       <input class="cell-input" name="products[<?= $i ?>][description]" value="<?= htmlspecialchars((string)$p['description']) ?>">
                     </td>
                     <td class="price mono">
                       <input class="cell-input price" name="products[<?= $i ?>][price]" value="<?= htmlspecialchars(format_npr($p['price'])) ?>">
-                      <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
                     </td>
                   </tr>
                 <?php endforeach; ?>
@@ -211,6 +280,7 @@ $dateStr = date('d M Y');
 
           <div class="actions">
             <div class="editor-tools stack">
+              <button class="btn secondary" type="button" onclick="openSettings()">Settings</button>
               <button class="btn secondary" type="button" onclick="editName()">Edit Name</button>
               <button class="btn secondary" type="button" id="toggle-prices-btn" onclick="togglePrices()">Hide Prices</button>
               <button class="btn secondary" type="button" onclick="addRow()">Add Product</button>
@@ -230,18 +300,106 @@ $dateStr = date('d M Y');
     <tr>
       <td>
         <strong><input class="cell-input" name="__INDEX__" placeholder="Item" value=""></strong>
+        <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
       </td>
       <td>
         <input class="cell-input" name="__INDEX__" placeholder="Description" value="">
       </td>
       <td class="price mono">
         <input class="cell-input price" name="__INDEX__" placeholder="0" value="">
-        <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
       </td>
     </tr>
   </template>
 
+  <div class="modal-overlay" id="settings-overlay">
+    <div class="modal">
+      <h2>Settings</h2>
+      <form id="settings-form">
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="label">Shop Name</label>
+            <input class="input" type="text" name="shop_name" id="set-shop-name" value="<?= htmlspecialchars($shopName) ?>">
+          </div>
+          <div class="form-row">
+            <label class="label">VAT No</label>
+            <input class="input" type="text" name="vat_no" id="set-vat-no" value="<?= htmlspecialchars($vatNo) ?>">
+          </div>
+          <div class="form-row">
+            <label class="label">Customer Name</label>
+            <input class="input" type="text" id="set-customer-name" value="<?= htmlspecialchars($customerName) ?>">
+          </div>
+          <div class="form-row">
+            <label class="label">Date (optional)</label>
+            <input class="input" type="date" name="date_iso" id="set-date-iso" value="<?= htmlspecialchars($dateISO) ?>">
+          </div>
+          <div class="form-row">
+            <label class="label">Hide Prices</label>
+            <input class="input" type="checkbox" name="hide_prices" id="set-hide-prices" <?= $hidePricesPref ? 'checked' : '' ?>>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" onclick="closeSettings()">Close</button>
+          <button type="submit" class="btn">Save Settings</button>
+        </div>
+        <input type="hidden" name="action" value="save_settings">
+      </form>
+    </div>
+  </div>
+
   <script>
+    function openSettings(){
+      document.getElementById('settings-overlay').style.display = 'flex';
+      // seed customer input live from display
+      document.getElementById('set-customer-name').value = document.getElementById('customer-name-display').textContent.trim();
+      document.getElementById('set-hide-prices').checked = document.getElementById('card-root').classList.contains('hide-prices');
+    }
+    function closeSettings(){
+      document.getElementById('settings-overlay').style.display = 'none';
+    }
+    document.getElementById('settings-overlay').addEventListener('click', function(e){
+      if(e.target === this){ closeSettings(); }
+    });
+
+    document.getElementById('settings-form').addEventListener('submit', async function(e){
+      e.preventDefault();
+      const form = e.currentTarget;
+      const data = new FormData(form);
+      try{
+        const resp = await fetch(window.location.href, { method: 'POST', body: data });
+        const json = await resp.json();
+        if(json && json.ok){
+          // Apply UI updates without full reload
+          const shopTitle = document.getElementById('shop-title');
+          if(shopTitle) shopTitle.textContent = document.getElementById('set-shop-name').value || 'Glorious Trade Hub';
+          const vatSpan = document.getElementById('vat-span');
+          const vatVal = document.getElementById('set-vat-no').value.trim();
+          vatSpan.innerHTML = vatVal ? ('VAT No: <span class="mono">' + vatVal.replace(/</g,'&lt;') + '</span>') : '';
+          const customerVal = document.getElementById('set-customer-name').value.trim();
+          document.getElementById('customer-name-display').textContent = customerVal || 'Your Name';
+          const dateIso = document.getElementById('set-date-iso').value;
+          const currentDateEl = document.getElementById('current-date');
+          if(dateIso){
+            const dt = new Date(dateIso);
+            const opts = { year:'numeric', month:'short', day:'numeric' };
+            currentDateEl.textContent = dt.toLocaleDateString('en-US', opts);
+            currentDateEl.dataset.fixedDate = '1';
+          }else{
+            currentDateEl.dataset.fixedDate = '0';
+            updateDate();
+          }
+          const hide = document.getElementById('set-hide-prices').checked;
+          const card = document.getElementById('card-root');
+          card.classList.toggle('hide-prices', hide);
+          const btn = document.getElementById('toggle-prices-btn');
+          if(btn){ btn.textContent = hide ? 'Show Prices' : 'Hide Prices'; }
+          closeSettings();
+        }
+      }catch(err){
+        console.error(err);
+        alert('Failed to save settings');
+      }
+    });
+
     function editName(){
       const display = document.getElementById('customer-name-display');
       const current = display.textContent.trim();
@@ -255,7 +413,10 @@ $dateStr = date('d M Y');
     function updateDate() {
       const now = new Date();
       const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-      document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', dateOptions);
+      const el = document.getElementById('current-date');
+      if(el.dataset.fixedDate !== '1'){
+        el.textContent = now.toLocaleDateString('en-US', dateOptions);
+      }
     }
 
     function parsePrice(value){
@@ -317,6 +478,17 @@ $dateStr = date('d M Y');
       card.classList.toggle('hide-prices');
       const hidden = card.classList.contains('hide-prices');
       btn.textContent = hidden ? 'Show Prices' : 'Hide Prices';
+      // persist preference quickly
+      try{
+        const fd = new FormData();
+        fd.append('action','save_settings');
+        fd.append('shop_name', document.getElementById('shop-title').textContent.trim());
+        const vatSpanMono = document.querySelector('#vat-span .mono');
+        fd.append('vat_no', vatSpanMono ? vatSpanMono.textContent.trim() : '');
+        fd.append('date_iso', document.getElementById('set-date-iso') ? document.getElementById('set-date-iso').value : '');
+        fd.append('hide_prices', hidden ? 'on' : '');
+        fetch(window.location.href, { method:'POST', body: fd });
+      }catch(_e){}
     }
 
     document.addEventListener('input', function(e){
