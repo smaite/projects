@@ -196,6 +196,16 @@ if ($dateISO !== '') {
     .hide-prices .table tbody td.price{display:none}
     /* Keep remove button visible even when price column hidden */
     .hide-prices .table tbody td .row-remove{display:inline-block}
+    /* Settings modal */
+    .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:9999}
+    .modal{width:min(640px, 92vw); background:#0a0a0a; border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:0 30px 60px rgba(0,0,0,0.6)}
+    .modal h2{margin:0 0 8px 0; font-size:18px}
+    .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    .form-row{display:flex; flex-direction:column; gap:6px}
+    .label{font-size:12px; color:#9aa0a6}
+    .input{border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:transparent; color:var(--text)}
+    .input[type="checkbox"]{width:auto}
+    .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:14px}
     @media (max-width: 640px){.meta{grid-template-columns:1fr}.wrap{padding:16px}}
     @media print{
       body{background:#000;color:#fff}
@@ -281,8 +291,6 @@ if ($dateISO !== '') {
           <div class="actions">
             <div class="editor-tools stack">
               <button class="btn secondary" type="button" onclick="openSettings()">Settings</button>
-              <button class="btn secondary" type="button" onclick="editName()">Edit Name</button>
-              <button class="btn secondary" type="button" id="toggle-prices-btn" onclick="togglePrices()">Hide Prices</button>
               <button class="btn secondary" type="button" onclick="addRow()">Add Product</button>
               <button class="btn ghost" type="button" onclick="newReceipt()">New Receipt</button>
               <button class="btn secondary" type="submit">Save</button>
@@ -352,9 +360,11 @@ if ($dateISO !== '') {
       // seed customer input live from display
       document.getElementById('set-customer-name').value = document.getElementById('customer-name-display').textContent.trim();
       document.getElementById('set-hide-prices').checked = document.getElementById('card-root').classList.contains('hide-prices');
+      document.body.style.overflow = 'hidden';
     }
     function closeSettings(){
       document.getElementById('settings-overlay').style.display = 'none';
+      document.body.style.overflow = '';
     }
     document.getElementById('settings-overlay').addEventListener('click', function(e){
       if(e.target === this){ closeSettings(); }
@@ -390,8 +400,6 @@ if ($dateISO !== '') {
           const hide = document.getElementById('set-hide-prices').checked;
           const card = document.getElementById('card-root');
           card.classList.toggle('hide-prices', hide);
-          const btn = document.getElementById('toggle-prices-btn');
-          if(btn){ btn.textContent = hide ? 'Show Prices' : 'Hide Prices'; }
           closeSettings();
         }
       }catch(err){
@@ -472,25 +480,8 @@ if ($dateISO !== '') {
       window.location.href = window.location.pathname + '?new=1';
     }
 
-    function togglePrices(){
-      const card = document.getElementById('card-root');
-      const btn = document.getElementById('toggle-prices-btn');
-      card.classList.toggle('hide-prices');
-      const hidden = card.classList.contains('hide-prices');
-      btn.textContent = hidden ? 'Show Prices' : 'Hide Prices';
-      // persist preference quickly
-      try{
-        const fd = new FormData();
-        fd.append('action','save_settings');
-        fd.append('shop_name', document.getElementById('shop-title').textContent.trim());
-        const vatSpanMono = document.querySelector('#vat-span .mono');
-        fd.append('vat_no', vatSpanMono ? vatSpanMono.textContent.trim() : '');
-        fd.append('date_iso', document.getElementById('set-date-iso') ? document.getElementById('set-date-iso').value : '');
-        fd.append('hide_prices', hidden ? 'on' : '');
-        fetch(window.location.href, { method:'POST', body: fd });
-      }catch(_e){}
-    }
-
+    // Removed standalone togglePrices button; settings controls this
+   
     document.addEventListener('input', function(e){
       if(e.target && e.target.matches('#products-body input')){
         if(e.target.classList.contains('price')){
