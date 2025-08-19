@@ -124,6 +124,9 @@ $dateStr = date('d M Y');
     .cell-input{width:100%; background:transparent; border:none; color:inherit; font:inherit; outline:none}
     .cell-input::placeholder{color:#6b7280}
     .cell-input.price{text-align:right}
+    /* Hide per-item prices when toggled */
+    .hide-prices .table thead th.price,
+    .hide-prices .table tbody td.price{display:none}
     @media (max-width: 640px){.meta{grid-template-columns:1fr}.wrap{padding:16px}}
     @media print{
       body{background:#000;color:#fff}
@@ -140,7 +143,7 @@ $dateStr = date('d M Y');
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
+    <div class="card" id="card-root">
       <form method="post" id="receipt-form">
         <div class="header">
           <div class="brand">
@@ -209,6 +212,7 @@ $dateStr = date('d M Y');
           <div class="actions">
             <div class="editor-tools stack">
               <button class="btn secondary" type="button" onclick="editName()">Edit Name</button>
+              <button class="btn secondary" type="button" id="toggle-prices-btn" onclick="togglePrices()">Hide Prices</button>
               <button class="btn secondary" type="button" onclick="addRow()">Add Product</button>
               <button class="btn ghost" type="button" onclick="newReceipt()">New Receipt</button>
               <button class="btn secondary" type="submit">Save</button>
@@ -305,6 +309,14 @@ $dateStr = date('d M Y');
 
     function newReceipt(){
       window.location.href = window.location.pathname + '?new=1';
+    }
+
+    function togglePrices(){
+      const card = document.getElementById('card-root');
+      const btn = document.getElementById('toggle-prices-btn');
+      card.classList.toggle('hide-prices');
+      const hidden = card.classList.contains('hide-prices');
+      btn.textContent = hidden ? 'Show Prices' : 'Hide Prices';
     }
 
     document.addEventListener('input', function(e){
