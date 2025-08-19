@@ -24,6 +24,7 @@ $defaultProducts = [
 
 $shopFile = __DIR__ . '/shop.json';
 $productsFile = __DIR__ . '/products.json';
+$receiptsDir = __DIR__ . '/receipts';
 
 // Load shop config
 $shopConfig = [
@@ -45,6 +46,7 @@ $vatNo = (string)$shopConfig['vatNo'];
 $hidePricesPref = (bool)$shopConfig['hidePrices'];
 $dateISO = (string)$shopConfig['dateISO'];
 
+// Settings save endpoint
 $isSettingsSave = isset($_POST['action']) && $_POST['action'] === 'save_settings';
 if ($isSettingsSave) {
   $shopName = isset($_POST['shop_name']) ? trim((string)$_POST['shop_name']) : $shopName;
@@ -60,6 +62,47 @@ if ($isSettingsSave) {
   @file_put_contents($shopFile, json_encode($shopConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
   header('Content-Type: application/json');
   echo json_encode(['ok' => true, 'shop' => $shopConfig]);
+  exit;
+}
+
+// Save named receipt endpoint
+if (isset($_POST['action']) && $_POST['action'] === 'save_named_receipt') {
+  header('Content-Type: application/json');
+  $receiptName = isset($_POST['receipt_name']) ? trim((string)$_POST['receipt_name']) : '';
+  $dataJson = isset($_POST['data']) ? (string)$_POST['data'] : '';
+  $data = json_decode($dataJson, true);
+  if ($receiptName === '' || !is_array($data)) {
+    echo json_encode(['ok' => false, 'error' => 'Invalid data']);
+    exit;
+  }
+  if (!is_dir($receiptsDir)) {@mkdir($receiptsDir, 0777, true);} 
+  $slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9-_]+/', '-', $receiptName), '-'));
+  if ($slug === '') { $slug = 'receipt-' . date('Ymd-His'); }
+  $path = $receiptsDir . '/' . $slug . '.json';
+  $data['meta'] = [
+    'name' => $receiptName,
+    'savedAt' => date(DATE_ATOM)
+  ];
+  $ok = @file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+  if ($ok === false) {
+    echo json_encode(['ok' => false, 'error' => 'Failed to write file']);
+  } else {
+    echo json_encode(['ok' => true, 'file' => basename($path), 'name' => $receiptName]);
+  }
+  exit;
+}
+
+// Load receipt endpoint
+if (isset($_POST['action']) && $_POST['action'] === 'load_receipt') {
+  header('Content-Type: application/json');
+  $file = isset($_POST['receipt_file']) ? basename((string)$_POST['receipt_file']) : '';
+  if ($file === '' || !preg_match('/\.json$/', $file)) { echo json_encode(['ok'=>false, 'error'=>'Invalid file']); exit; }
+  $path = $receiptsDir . '/' . $file;
+  if (!file_exists($path)) { echo json_encode(['ok'=>false, 'error'=>'Not found']); exit; }
+  $raw = file_get_contents($path);
+  $json = json_decode($raw, true);
+  if (!is_array($json)) { echo json_encode(['ok'=>false, 'error'=>'Invalid JSON']); exit; }
+  echo json_encode(['ok'=>true, 'data'=>$json]);
   exit;
 }
 
@@ -294,6 +337,7 @@ if ($dateISO !== '') {
               <button class="btn secondary" type="button" onclick="addRow()">Add Product</button>
               <button class="btn ghost" type="button" onclick="newReceipt()">New Receipt</button>
               <button class="btn secondary" type="submit">Save</button>
+              <button class="btn secondary" type="button" onclick="openSaveOverlay()">Save Receipt</button>
             </div>
             <div class="stack">
               <button class="btn" type="button" onclick="window.print()">Print / Save PDF</button>
@@ -345,11 +389,49 @@ if ($dateISO !== '') {
             <input class="input" type="checkbox" name="hide_prices" id="set-hide-prices" <?= $hidePricesPref ? 'checked' : '' ?>>
           </div>
         </div>
+        <div class="form-row" style="margin-top:12px;">
+          <label class="label">Load Saved Receipt</label>
+          <div class="stack">
+            <select class="input" id="saved-receipts" style="min-width:240px">
+              <option value="">-- Select saved receipt --</option>
+              <?php
+              if (is_dir($receiptsDir)) {
+                foreach (glob($receiptsDir . '/*.json') as $f) {
+                  $base = basename($f);
+                  echo '<option value="' . htmlspecialchars($base) . '">' . htmlspecialchars($base) . '</option>';
+                }
+              }
+              ?>
+            </select>
+            <button type="button" class="btn secondary" onclick="loadSelectedReceipt()">Load</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="label">Import Receipt (JSON file)</label>
+          <input class="input" type="file" id="import-receipt-file" accept="application/json,.json">
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" onclick="closeSettings()">Close</button>
           <button type="submit" class="btn">Save Settings</button>
         </div>
         <input type="hidden" name="action" value="save_settings">
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="save-overlay">
+    <div class="modal">
+      <h2>Save Receipt</h2>
+      <form id="save-form">
+        <div class="form-row">
+          <label class="label">Receipt Name</label>
+          <input class="input" type="text" id="save-receipt-name" placeholder="e.g., John Doe - 2025-08-19">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" onclick="closeSaveOverlay()">Close</button>
+          <button type="submit" class="btn">Save</button>
+        </div>
+        <input type="hidden" name="action" value="save_named_receipt">
       </form>
     </div>
   </div>
@@ -407,6 +489,142 @@ if ($dateISO !== '') {
         alert('Failed to save settings');
       }
     });
+
+    // Load from saved receipts in settings
+    async function loadSelectedReceipt(){
+      const sel = document.getElementById('saved-receipts');
+      const file = sel.value;
+      if(!file){ alert('Select a receipt'); return; }
+      const fd = new FormData();
+      fd.append('action','load_receipt');
+      fd.append('receipt_file', file);
+      try{
+        const resp = await fetch(window.location.href, { method:'POST', body: fd });
+        const json = await resp.json();
+        if(json && json.ok){ applyReceiptData(json.data); closeSettings(); }
+        else { alert('Failed to load: ' + (json && json.error ? json.error : 'Unknown')); }
+      }catch(err){ alert('Failed to load'); }
+    }
+
+    // Import receipt from local JSON file
+    document.getElementById('import-receipt-file').addEventListener('change', function(e){
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(){
+        try{
+          const data = JSON.parse(reader.result);
+          applyReceiptData(data);
+          closeSettings();
+        }catch(err){ alert('Invalid JSON'); }
+      };
+      reader.readAsText(file);
+    });
+
+    function openSaveOverlay(){
+      document.getElementById('save-overlay').style.display = 'flex';
+      const nameInput = document.getElementById('save-receipt-name');
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth()+1).padStart(2,'0');
+      const d = String(today.getDate()).padStart(2,'0');
+      nameInput.value = document.getElementById('customer-name-display').textContent.trim() + ' - ' + `${y}-${m}-${d}`;
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSaveOverlay(){
+      document.getElementById('save-overlay').style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    document.getElementById('save-overlay').addEventListener('click', function(e){ if(e.target===this){ closeSaveOverlay(); } });
+
+    function collectCurrentData(){
+      const rows = Array.from(document.querySelectorAll('#products-body tr'));
+      const products = rows.map(tr => {
+        const inputs = tr.querySelectorAll('input');
+        return {
+          item: inputs[0] ? inputs[0].value.trim() : '',
+          description: inputs[1] ? inputs[1].value.trim() : '',
+          price: inputs[2] ? inputs[2].value.trim() : ''
+        };
+      }).filter(p => p.item || p.description || p.price);
+      const card = document.getElementById('card-root');
+      const data = {
+        shop: {
+          shopName: document.getElementById('shop-title').textContent.trim(),
+          vatNo: (document.querySelector('#vat-span .mono') ? document.querySelector('#vat-span .mono').textContent.trim() : ''),
+          hidePrices: card.classList.contains('hide-prices'),
+          dateISO: (document.getElementById('set-date-iso') ? document.getElementById('set-date-iso').value : '')
+        },
+        customerName: document.getElementById('customer-name-display').textContent.trim(),
+        dateText: document.getElementById('current-date').textContent.trim(),
+        products: products,
+      };
+      return data;
+    }
+
+    document.getElementById('save-form').addEventListener('submit', async function(e){
+      e.preventDefault();
+      const name = document.getElementById('save-receipt-name').value.trim();
+      if(!name){ alert('Enter receipt name'); return; }
+      const payload = collectCurrentData();
+      const fd = new FormData();
+      fd.append('action','save_named_receipt');
+      fd.append('receipt_name', name);
+      fd.append('data', JSON.stringify(payload));
+      try{
+        const resp = await fetch(window.location.href, { method:'POST', body: fd });
+        const json = await resp.json();
+        if(json && json.ok){
+          // update dropdown list in settings if present
+          const sel = document.getElementById('saved-receipts');
+          if(sel){
+            const opt = document.createElement('option');
+            opt.value = json.file; opt.textContent = json.file; sel.appendChild(opt);
+          }
+          closeSaveOverlay();
+          alert('Saved');
+        }else{ alert('Failed to save'); }
+      }catch(err){ alert('Failed to save'); }
+    });
+
+    function applyReceiptData(data){
+      try{
+        if(data.shop){
+          if(data.shop.shopName !== undefined){ document.getElementById('shop-title').textContent = String(data.shop.shopName || 'Glorious Trade Hub'); }
+          const vatSpan = document.getElementById('vat-span');
+          const vat = String(data.shop.vatNo || '');
+          vatSpan.innerHTML = vat ? ('VAT No: <span class="mono">' + vat.replace(/</g,'&lt;') + '</span>') : '';
+          const card = document.getElementById('card-root');
+          card.classList.toggle('hide-prices', !!data.shop.hidePrices);
+          if(document.getElementById('set-date-iso')){ document.getElementById('set-date-iso').value = data.shop.dateISO || ''; }
+        }
+        if(data.customerName !== undefined){
+          document.getElementById('customer-name-display').textContent = String(data.customerName || 'Your Name');
+        }
+        if(data.dateText){ document.getElementById('current-date').textContent = data.dateText; }
+        // rebuild products
+        const body = document.getElementById('products-body');
+        body.innerHTML = '';
+        const items = Array.isArray(data.products) ? data.products : [];
+        items.forEach((p, idx) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <strong><input class="cell-input" name="products[${idx}][item]" value="${(p.item||'').replace(/"/g,'&quot;')}"></strong>
+              <button type="button" class="row-remove" onclick="removeRow(this)">✕</button>
+            </td>
+            <td>
+              <input class="cell-input" name="products[${idx}][description]" value="${(p.description||'').replace(/"/g,'&quot;')}">
+            </td>
+            <td class="price mono">
+              <input class="cell-input price" name="products[${idx}][price]" value="${(p.price||'').replace(/"/g,'&quot;')}">
+            </td>`;
+          body.appendChild(tr);
+        });
+        reindex();
+        computeTotal();
+      }catch(err){ console.error(err); alert('Failed to apply receipt'); }
+    }
 
     function editName(){
       const display = document.getElementById('customer-name-display');
@@ -480,8 +698,6 @@ if ($dateISO !== '') {
       window.location.href = window.location.pathname + '?new=1';
     }
 
-    // Removed standalone togglePrices button; settings controls this
-   
     document.addEventListener('input', function(e){
       if(e.target && e.target.matches('#products-body input')){
         if(e.target.classList.contains('price')){
